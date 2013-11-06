@@ -48,9 +48,10 @@
             return isSupported;
         }()),
         ieVerification = Math.floor((Math.random() * 10) + 1),
-        isFunction = function (value) { return (value && (value).constructor === Function); },
-        isString = function (value) {return (value && (value).constructor === String); },
-        isObject = function (value) {return (value && (value).constructor === Object); },
+        toString = Object.prototype.toString,
+        isFunction = function (value) { return toString.call(value) == '[object Function]'; },
+        isString = function (value) { return toString.call(value) == '[object String]'; },
+        isObject = function (value) { return value === Object(value); },
         /**
          * Dojo Mixin
          */
