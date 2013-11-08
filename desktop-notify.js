@@ -1,3 +1,8 @@
+/*
+    Fork and hack by kerry,
+    change history is here:
+    https://github.com/kerryChen95/HTML5-Desktop-Notifications
+*/
 /**
  * Copyright 2012 Tsvetan Tsvetkov
  *
@@ -30,28 +35,50 @@
         },
         empty = {},
         emptyString = "",
+        toString = Object.prototype.toString,
+        isFunction = function (value) { return toString.call(value) == '[object Function]'; },
+        isString = function (value) { return toString.call(value) == '[object String]'; },
+        isObject = function (value) { return value === Object(value); },
         isSupported = (function () {
-            var isSupported = false;
+            var isSupported = false,
+                ua = win.navigator.userAgent,
+                ieVersion;
+
             /*
              * Use try {} catch() {} because the check for IE may throws an exception
              * if the code is run on browser that is not Safar/Chrome/IE or
              * Firefox with html5notifications plugin.
              *
              * Also, we canNOT detect if msIsSiteMode method exists, as it is
-             * a method of host object. In IE check for existing method of host
-             * object returns undefined. So, we try to run it - if it runs 
+             * a method of host object. **In IE check for existing method of host
+             * object returns undefined.** So, we try to run it - if it runs
              * successfully - then it is IE9+, if not - an exceptions is thrown.
+             *
+             * `window.external.msIsSiteMode` method introduction:
+             * http://msdn.microsoft.com/en-us/library/ff976310(v=vs.85).aspx
+             *
+             * When this annotation written, IE 11 still does not support desktop
+             * notification(http://caniuse.com/notifications), but IE 9+ in pinned
+             * site mode does!
+             *
              */
             try {
-                isSupported = !!(/* Safari, Chrome */win.Notification || /* Chrome & ff-html5notifications plugin */win.webkitNotifications || /* Firefox Mobile */navigator.mozNotification || /* IE9+ */(win.external && win.external.msIsSiteMode() !== undefined));
+                if( win.Notification || /* Safari, Chrome */
+                    win.webkitNotifications || /* Chrome & ff-html5notifications plugin */
+                    navigator.mozNotification /* Firefox Mobile */
+                ){
+                    isSupported = true;
+                }
+                /* IE9+ and in pinned site mode */
+                else if(win.external && win.external.msIsSiteMode()){
+                    ieVersion = parseFloat(ua.match(/MSIE (\d+\.\d*)/)[1]);
+                    if(!ieVersion) ieVersion = -1;
+                    if(ieVersion >= 9) isSupported = true;
+                }
             } catch (e) {}
             return isSupported;
         }()),
         ieVerification = Math.floor((Math.random() * 10) + 1),
-        toString = Object.prototype.toString,
-        isFunction = function (value) { return toString.call(value) == '[object Function]'; },
-        isString = function (value) { return toString.call(value) == '[object String]'; },
-        isObject = function (value) { return value === Object(value); },
         /**
          * Dojo Mixin
          */
@@ -69,7 +96,7 @@
         settings = defaultSetting;
     function getNotification(title, options) {
         var notification;
-        if (win.Notification) { /* Safari 6, Chrome (23+) */
+        if (win.Notification) { /* Safari 6, Chrome 23+, Firefox 23+ */
             notification =  new win.Notification(title, {
                 /* The notification's icon - For Chrome in Windows, Linux & Chrome OS */
                 icon: isString(options.icon) ? options.icon : options.icon.x32,
@@ -100,7 +127,7 @@
     }
     function getWrapper(notification) {
         return {
-            close: function () {
+            "close": function () {
                 if (notification) {
                     if (notification.close) {
                         //http://code.google.com/p/ff-html5notifications/issues/detail?id=58
@@ -111,7 +138,8 @@
                         }
                     }
                 }
-            }
+            },
+            "native": notification
         };
     }
     function requestPermission(callback) {
@@ -135,7 +163,7 @@
         var permission;
         if (!isSupported) { return; }
         if (win.Notification && win.Notification.permissionLevel) {
-            //Safari 6
+            //Safari 6 & Firefox 23+
             permission = win.Notification.permissionLevel();
         } else if (win.webkitNotifications && win.webkitNotifications.checkPermission) {
             //Chrome & Firefox with html5-notifications plugin installed
@@ -146,7 +174,7 @@
         } else if (win.Notification && win.Notification.permission) {
             // Firefox 23+
             permission = win.Notification.permission;
-        } else if (win.external && (win.external.msIsSiteMode() !== undefined)) { /* keep last */
+        } else if (win.external && (win.external.msIsSiteMode())) { /* keep last */
             //IE9+
             permission = win.external.msIsSiteMode() ? PERMISSION_GRANTED : PERMISSION_DEFAULT;
         }
@@ -174,9 +202,14 @@
 
             Title and icons are required. Return undefined if not set.
          */
-        if (isSupported && isDocumentHidden() && isString(title) && (options && (isString(options.icon) || isObject(options.icon))) && (permissionLevel() === PERMISSION_GRANTED)) {
-            notification = getNotification(title, options);
+        if (!isSupported ||
+            !isDocumentHidden() ||
+            !isString(title) ||
+            !(options && (isString(options.icon) || isObject(options.icon))) && (permissionLevel() === PERMISSION_GRANTED)
+        ) {
+            return;
         }
+        notification = getNotification(title, options);
         notificationWrapper = getWrapper(notification);
         //Auto-close notification
         if (settings.autoClose && notification && !notification.ieVerification && notification.addEventListener) {
